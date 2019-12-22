@@ -88,18 +88,8 @@ class WizzAirApi:
             url=f'{self.api_url}/search/timetable',
             json={
                 "flightList": [
-                    {
-                        "departureStation": src,
-                        "arrivalStation": dst,
-                        "from": start,
-                        "to": stop,
-                    },
-                    {
-                        "departureStation": dst,
-                        "arrivalStation": src,
-                        "from": start,
-                        "to": stop,
-                    },
+                    {"departureStation": src, "arrivalStation": dst, "from": start, "to": stop},
+                    {"departureStation": dst, "arrivalStation": src, "from": start, "to": stop},
                 ],
                 "priceType": "regular",
                 "adultCount": 1,
@@ -110,20 +100,23 @@ class WizzAirApi:
         ).json()
 
         flights = {src: {}, dst: {}}
-        for flight in response['outboundFlights'] + response['returnFlights']:
-            departure_date = flight['departureDate'][:10]
-            departure_station = flight['departureStation']
-            arrival_station = flight['arrivalStation']
-            price_amount = flight['price']['amount']
-            price_currency = flight['price']['currencyCode']
-
-            eur_price = self.es.get_eur_price(price_amount, price_currency)
-
-            try:
-                flights[departure_station][departure_date] = \
-                    flights[departure_station].get(departure_date, []) + [(arrival_station, eur_price)]
-            except KeyError:
-                break
+        self.insert_flights(response, flights)
 
         return flights
 
+    def insert_flights(self, response, flights):
+        for flight in response['outboundFlights'] + response['returnFlights']:
+            date = flight['departureDate'][:10]
+            src = flight['departureStation']
+            dst = flight['arrivalStation']
+            price = flight['price']['amount']
+            currency = flight['price']['currencyCode']
+
+            eur_price = self.es.get_eur_price(price, currency)
+
+            if src not in flights:
+                break
+
+            flights[src][date] = flights[src].get(date, []) + [(dst, eur_price)]
+
+        return flights
