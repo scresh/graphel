@@ -35,7 +35,7 @@ class WizzAirApi:
             'referer': f'https://{self.wizzair_domain}/',
             'sec-fetch-mode': 'cors',
             'sec-fetch-site': 'same-site',
-            'x-requestverificationtoken': self.session.cookies.get('RequestVerificationToken'),
+            'x-requestverificationtoken': self.session.cookies.get_airport('RequestVerificationToken'),
         }
 
     @property
@@ -117,6 +117,6 @@ class WizzAirApi:
             if src not in flights:
                 break
 
-            flights[src][date] = flights[src].get(date, []) + [(dst, eur_price)]
+            flights[src][date] = flights[src].get_airport(date, []) + [(dst, eur_price)]
 
         return flights
