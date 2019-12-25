@@ -6,15 +6,15 @@ AIRPORTS_URL = 'https://raw.githubusercontent.com/jpatokal/openflights/master/da
 
 class GeolocationService:
     def __init__(self, airports_url=AIRPORTS_URL):
-        self.airports = self.prepare_airports(airports_url)
+        self.airports = self._prepare_airports(airports_url)
 
-    def prepare_airports(self, database_url):
+    def _prepare_airports(self, database_url: str) -> dict:
         airports = {}
         response = requests.get(database_url).text.strip()
         airports_data = csv.reader(response.split('\n'), delimiter=',', quotechar='"')
 
         for airport_data in airports_data:
-            airport_dict = self.get_airport_dict(airport_data)
+            airport_dict = self._get_airport_dict(airport_data)
             if airport_dict:
                 code = airport_dict.pop("code")
                 airports[code] = airport_dict
@@ -22,20 +22,46 @@ class GeolocationService:
         return airports
 
     @staticmethod
-    def get_airport_dict(airport_data: list) -> dict:
+    def _get_airport_dict(airport_data: list) -> dict:
         country = airport_data[3]
-        airport_code = airport_data[4]
+        code = airport_data[4]
         latitude = round(float(airport_data[6]), 2)
         longitude = round(float(airport_data[7]), 2)
 
-        if len(airport_code) != 3:
+        if len(code) != 3:
             return {}
         else:
-            return {"code": airport_code, "country": country, "latitude": latitude, "longitude": longitude}
+            return {"code": code, "country": country, "latitude": latitude, "longitude": longitude}
 
     @property
-    def countries(self):
+    def countries(self) -> set:
         return {x["country"] for x in self.airports.values()}
 
-    def get(self, airport_code):
-        return self.airports.get(airport_code)
+    def get_airport(self, airport_code: str) -> dict:
+        return self.airports.get(airport_code, {})
+
+    def get_neighbours(self, airport_code: str, max_distance: float) -> list:
+        neighbours = []
+
+        latitude_a = self.airports[airport_code]['latitude']
+        longitude_a = self.airports[airport_code]['longitude']
+
+        for code, airport in self.airports.items():
+            latitude_b = airport['latitude']
+            longitude_b = airport['longitude']
+
+            distance = self.get_distance((latitude_a, longitude_a), (latitude_b, longitude_b))
+
+            if distance <= max_distance:
+                neighbours.append(code)
+
+        return neighbours
+
+    @staticmethod
+    def get_distance(coordinates_a: tuple, coordinates_b: tuple) -> float:
+        degree_in_kms = 111.12
+
+        latitude_a, longitude_a = coordinates_a
+        latitude_b, longitude_b = coordinates_b
+
+        return degree_in_kms * ((latitude_b - latitude_a)**2 + (longitude_b - longitude_a)**2)**0.5
