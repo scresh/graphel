@@ -23,7 +23,7 @@ class GeoService:
 
         return airports
 
-    def _prepare_airports_distances(self):
+    def _prepare_airports_distances(self) -> dict:
         airports_distances = {}
         for code_a, code_b in product(self.airports.keys(), self.airports.keys()):
             latitude_a = self.airports[code_a]['latitude']
@@ -31,7 +31,7 @@ class GeoService:
 
             latitude_b = self.airports[code_b]['latitude']
             longitude_b = self.airports[code_b]['longitude']
-            distance = self.get_distance((latitude_a, longitude_a), (latitude_b, longitude_b))
+            distance = self._get_distance((latitude_a, longitude_a), (latitude_b, longitude_b))
 
             airports_distances[code_a] = airports_distances.get(code_a, {})
             airports_distances[code_a][code_b] = distance
@@ -50,7 +50,7 @@ class GeoService:
             return {"code": code, "country": country, "latitude": latitude, "longitude": longitude}
 
     @property
-    def countries(self) -> set:
+    def all_countries(self) -> set:
         return {x["country"] for x in self.airports.values()}
 
     def get_country(self, airport_code: str) -> str:
@@ -61,7 +61,7 @@ class GeoService:
         return [code for code, distance in airport_distances.items() if distance <= max_distance]
 
     @staticmethod
-    def get_distance(coordinates_a: tuple, coordinates_b: tuple) -> float:
+    def _get_distance(coordinates_a: tuple, coordinates_b: tuple) -> float:
         degree_in_kms = 111.12
 
         latitude_a, longitude_a = coordinates_a
