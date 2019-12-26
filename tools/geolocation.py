@@ -37,14 +37,18 @@ class GeolocationService:
     def countries(self) -> set:
         return {x["country"] for x in self.airports.values()}
 
-    def get_airport(self, airport_code: str) -> dict:
-        return self.airports.get(airport_code, {})
+    def get_country(self, airport_code: str) -> str:
+        return self.airports.get(airport_code, {}).get("country")
 
-    def get_neighbours(self, airport_code: str, max_distance: float) -> list:
-        neighbours = []
+    def get_nearby_airports(self, airport_code: str, max_distance: float) -> list:
+        nearby_airports = []
+        airport_origin = self.airports.get(airport_code)
 
-        latitude_a = self.airports[airport_code]['latitude']
-        longitude_a = self.airports[airport_code]['longitude']
+        if not airport_origin:
+            return nearby_airports
+
+        latitude_a = airport_origin['latitude']
+        longitude_a = airport_origin['longitude']
 
         for code, airport in self.airports.items():
             latitude_b = airport['latitude']
@@ -53,9 +57,9 @@ class GeolocationService:
             distance = self.get_distance((latitude_a, longitude_a), (latitude_b, longitude_b))
 
             if distance <= max_distance:
-                neighbours.append(code)
+                nearby_airports.append(code)
 
-        return neighbours
+        return nearby_airports
 
     @staticmethod
     def get_distance(coordinates_a: tuple, coordinates_b: tuple) -> float:
