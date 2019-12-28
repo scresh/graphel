@@ -13,33 +13,29 @@ class GeoService:
         self.distances = self.get_distances(self.airports)
 
     @classmethod
-    def get_airports(cls, airports_csv: DictReader) -> dict:
-        airports = {}
+    def get_airports(cls, airports_csv: DictReader) -> list:
+        airports = []
         for airport in airports_csv:
             if len(airport['iata_code']) != 3:
                 continue
 
-            airports[airport['iata_code']] = {
-                "country": airport['iso_country'],
-                "latitude": float(airport['latitude_deg']),
-                "longitude": float(airport['longitude_deg']),
-            }
+            airports.append((
+                airport['iata_code'],
+                airport['iso_country'],
+                round(float(airport['latitude_deg']), 2),
+                round(float(airport['longitude_deg']), 2),
+            ))
 
         return airports
 
     @classmethod
-    def get_distances(cls, airports: dict) -> dict:
-        distances = {}
-        for code_a, code_b in product(airports.keys(), airports.keys()):
-            latitude_a = airports[code_a]['latitude']
-            longitude_a = airports[code_a]['longitude']
-
-            latitude_b = airports[code_b]['latitude']
-            longitude_b = airports[code_b]['longitude']
-            distance = cls.calculate_distance((latitude_a, longitude_a), (latitude_b, longitude_b))
-
-            distances[code_a] = distances.get(code_a, {})
-            distances[code_a][code_b] = distance
+    def get_distances(cls, airports: list) -> list:
+        distances = []
+        for airport_a, airport_b in product(airports, airports):
+            coordinates_a = airport_a[2:4]
+            coordinates_b = airport_b[2:4]
+            distance = cls.calculate_distance(coordinates_a, coordinates_b)
+            distances.append((airport_a[0], airport_b[0], distance))
         return distances
 
     @classmethod
@@ -53,10 +49,10 @@ class GeoService:
         longitude_diff = abs(longitude_a - longitude_b)
 
         shortest_latitude_diff = min(latitude_diff, 360 - latitude_diff)
-        shortest_longitude_diff = min(longitude_diff, 360 - longitude_diff)
+        shortest_longitude_diff = min(longitude_diff, 180 - longitude_diff)
 
-        return degree_in_kms * (shortest_latitude_diff**2 + shortest_longitude_diff**2)**0.5
+        return round(degree_in_kms * (shortest_latitude_diff**2 + shortest_longitude_diff**2)**0.5, 2)
 
     @property
     def countries(self) -> list:
-        return list({x["country"] for x in self.airports.values()})
+        return list({x[1] for x in self.airports})
