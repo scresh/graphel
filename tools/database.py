@@ -28,7 +28,7 @@ class Country(BaseModel):
 
 class Airport(BaseModel):
     code = FixedCharField(unique=True, max_length=3)
-    country = ForeignKeyField(Country, backref='airports')
+    country = ForeignKeyField(Country)
     latitude = DecimalField(max_digits=3, decimal_places=2)
     longitude = DecimalField(max_digits=3, decimal_places=2)
 
