@@ -9,31 +9,35 @@ class GeoService:
     def __init__(self, airports_url=AIRPORTS_URL):
         response = requests.get(airports_url).text.split("\n")
         airports_csv = DictReader(response, delimiter=',', quotechar='"')
-        self.airports = self.get_airports(airports_csv)
+        self.airports, self.countries = self.get_base_data(airports_csv)
         self.distances = self.get_distances(self.airports)
 
     @classmethod
-    def get_airports(cls, airports_csv: DictReader) -> list:
-        airports = []
+    def get_base_data(cls, airports_csv: DictReader) -> tuple:
+        iata_codes, country_ids, latitudes, longitudes, iso_codes = [[] for _ in range(5)]
+
         for airport in airports_csv:
-            if len(airport['iata_code']) != 3:
+            if (len(airport['iata_code']) != 3) or (airport['iata_code'] in iata_codes):
                 continue
 
-            airports.append((
-                airport['iata_code'],
-                airport['iso_country'],
-                round(float(airport['latitude_deg']), 2),
-                round(float(airport['longitude_deg']), 2),
-            ))
+            if airport['iso_country'] not in iso_codes:
+                iso_codes.append(airport['iso_country'])
 
-        return airports
+            iata_codes.append(airport['iata_code'])
+            country_ids.append(iso_codes.index(airport['iso_country']) + 1)
+            latitudes.append(round(float(airport['latitude_deg']), 2))
+            longitudes.append(round(float(airport['longitude_deg']), 2))
+
+        airports = zip(range(1, len(iata_codes) + 1), iata_codes, country_ids, latitudes, longitudes)
+        countries = enumerate(iso_codes, 1)
+        return [*airports], [*countries]
 
     @classmethod
     def get_distances(cls, airports: list) -> list:
         distances = []
         for airport_a, airport_b in product(airports, airports):
-            coordinates_a = airport_a[2:4]
-            coordinates_b = airport_b[2:4]
+            coordinates_a = airport_a[3:5]
+            coordinates_b = airport_b[3:5]
             distance = cls.calculate_distance(coordinates_a, coordinates_b)
             distances.append((airport_a[0], airport_b[0], distance))
         return distances
@@ -52,7 +56,3 @@ class GeoService:
         shortest_longitude_diff = min(longitude_diff, 180 - longitude_diff)
 
         return round(degree_in_kms * (shortest_latitude_diff**2 + shortest_longitude_diff**2)**0.5, 2)
-
-    @property
-    def countries(self) -> list:
-        return list({(x[1], ) for x in self.airports})
