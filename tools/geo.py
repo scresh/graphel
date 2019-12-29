@@ -55,4 +55,4 @@ class GeoService:
 
     @property
     def countries(self) -> list:
-        return list({x[1] for x in self.airports})
+        return list({(x[1], ) for x in self.airports})
