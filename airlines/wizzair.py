@@ -2,7 +2,7 @@ from requests import Session
 from tools.exchange import ExchangeService
 
 
-class WizzAirApi:
+class WizzAir:
     def __init__(self, language_code='en-gb', wizzair_domain='wizzair.com'):
         self.language_code = language_code
         self.wizzair_domain = wizzair_domain
@@ -48,26 +48,9 @@ class WizzAirApi:
         return api_version
 
     @property
-    def city_map(self):
+    def airport_codes(self) -> list:
         response = self.session.get(f'{self.api_url}/asset/map?languageCode={self.language_code}').json()
-        city_map = {}
-
-        for city in response['cities']:
-            city_name = city['iata']
-            city_connections = [c['iata'] for c in city['connections']]
-            city_map[city_name] = city_connections
-
-        return city_map
-
-    @property
-    def pairs(self):
-        pairs = set()
-        for departure_station, arrival_stations in self.city_map.items():
-            for arrival_station in arrival_stations:
-                pair = tuple(sorted([departure_station, arrival_station]))
-                pairs.add(pair)
-
-        return list(pairs)
+        return [x['iata'] for x in response['cities']]
 
     def get_flight_dates(self, src, dst, start, stop):
         response = self.session.get(
