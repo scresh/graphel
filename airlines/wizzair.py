@@ -3,8 +3,7 @@ from tools.exchange import ExchangeService
 
 
 class WizzAir:
-    def __init__(self, language_code='en-gb', wizzair_domain='wizzair.com'):
-        self.language_code = language_code
+    def __init__(self, wizzair_domain='wizzair.com'):
         self.wizzair_domain = wizzair_domain
 
         self.es = ExchangeService()
@@ -49,7 +48,7 @@ class WizzAir:
 
     @property
     def airport_codes(self) -> list:
-        response = self.session.get(f'{self.api_url}/asset/map?languageCode={self.language_code}').json()
+        response = self.session.get(f'{self.api_url}/asset/map?languageCode=en-gb').json()
         return [x['iata'] for x in response['cities']]
 
     def get_flight_dates(self, src, dst, start, stop):
