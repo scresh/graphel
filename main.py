@@ -1,70 +1,81 @@
-import json
-from copy import deepcopy
+import peewee
+
+from airlines.wizzair import WizzAir
+from tools.geo import GeoService
+from tools.database import (
+    create_database,
+    Country,
+    Airport,
+    Distance,
+    Flight)
 
 
-class FlightChain(list):
-    def __init__(self, source, amount, index_range):
-        self.current_source = source
-        self.amount_left = amount
-        self.recent_index = 0
-        self.index_range = index_range
+class Graphel:
+    def __init__(self, db_filename):
+        create_database(db_filename)
+        self.airlines = (WizzAir(),)
+        self.fill_database(
+            GeoService(
+                self.get_airport_codes(self.airlines)
+            )
+        )
 
-        super().__init__()
+    @staticmethod
+    def get_airport_codes(airlines) -> list:
+        airport_codes = []
+        for airline in airlines:
+            airport_codes.extend(airline.airport_codes)
 
-    def add(self, flight) -> None:
-        src, dst, idx, price = flight
-        if src != self.current_source:
-            raise ValueError('Incorrect source airport')
+        return [*set(airport_codes)]
 
-        if not (self.recent_index + self.index_range[0] <= idx <= self.recent_index + self.index_range[1]):
-            raise ValueError('Incorrect idx')
+    def fill_database(self, geo_service: GeoService):
+        self.fill_countries(geo_service)
+        self.fill_airports(geo_service)
+        self.fill_distances(geo_service)
+        self.fill_flights()
 
-        if price > self.amount_left:
-            raise ValueError('Price too high')
+    @staticmethod
+    def fill_countries(geo_service):
+        Country.insert_many(rows=geo_service.countries, fields=[Country.id, Country.code]).execute()
 
-        super().append(flight)
-        self.amount_left -= price
-        self.recent_index = idx
-        self.current_source = dst
+    @staticmethod
+    def fill_airports(geo_service):
+        Airport.insert_many(
+            rows=geo_service.airports,
+            fields=[Airport.id, Airport.code, Airport.country, Airport.latitude, Airport.longitude],
+        ).execute()
 
-    @property
-    def get_value(self):
-        return " --> ".join([str(x) for x in self])
+    @staticmethod
+    def fill_distances(geo_service):
+        Distance.insert_many(
+            rows=geo_service.distances,
+            fields=[Distance.source, Distance.destination, Distance.distance],
+        ).execute()
 
+    def fill_flights(self):
+        for airline in self.airlines:
+            for source, destination in airline.connections:
+                flight_data = airline.get_flight_data(source, destination, "2020-02-01", "2020-03-01")
 
-def find_flights(fc_parent, data, results):
-    current_source = fc_parent.current_source
-    start_index = fc_parent.recent_index + fc_parent.index_range[0]
-    stop_index = fc_parent.recent_index + fc_parent.index_range[1]
-    amount_left = fc_parent.amount_left
+                if not flight_data:
+                    continue
+                length = len(flight_data)
 
-    matching_flights = deepcopy(data[current_source][start_index:stop_index])
-    for i in range(len(matching_flights)):
-        matching_flights[i] = [*filter(lambda x: x[1] <= amount_left, matching_flights[i])]
+                try:
+                    source_ids = [Airport.get(Airport.code == source).id] * length
+                    destination_ids = [Airport.get(Airport.code == destination).id] * length
+                except peewee.DoesNotExist:
+                    continue
 
-    if not any(matching_flights):
-        open('results.txt', 'a+').write(f'{fc_parent.get_value}\n')
-    else:
-        for i in range(len(matching_flights)):
-            for flight in matching_flights[i]:
-                fc_child = deepcopy(fc_parent)
-                src = fc_child.current_source
-                dst = flight[0]
-                idx = fc_child.recent_index + fc_child.index_range[0] + i
-                price = flight[1]
-                fc_child.add((src, dst, idx, price))
-                find_flights(fc_child, data, results)
+                flight_rows = [(x, y) + z for x, y, z in zip(source_ids, destination_ids, flight_data)]
+                Flight.insert_many(
+                    rows=flight_rows,
+                    fields=[Flight.source, Flight.destination, Flight.date, Flight.cost]
+                ).execute()
 
 
 def main():
-    data = json.loads(open('data.txt').read())
-    results = []
-    fc = FlightChain('WAW', 100.0, (2, 4))
-
-    find_flights(fc, data, results)
-
-    for x in results:
-        print(x)
+    graphel = Graphel(':memory:')
 
 
 if __name__ == '__main__':
