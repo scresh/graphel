@@ -6,18 +6,18 @@ AIRPORTS_URL = "https://ourairports.com/data/airports.csv"
 
 
 class GeoService:
-    def __init__(self, airports_url=AIRPORTS_URL):
+    def __init__(self, supported_airports_codes, airports_url=AIRPORTS_URL):
         response = requests.get(airports_url).text.split("\n")
         airports_csv = DictReader(response, delimiter=',', quotechar='"')
-        self.airports, self.countries = self.get_base_data(airports_csv)
+        self.airports, self.countries = self.get_airports_and_countries(supported_airports_codes, airports_csv)
         self.distances = self.get_distances(self.airports)
 
-    @classmethod
-    def get_base_data(cls, airports_csv: DictReader) -> tuple:
+    @staticmethod
+    def get_airports_and_countries(supported_airports_codes: list, airports_csv: DictReader) -> tuple:
         iata_codes, country_ids, latitudes, longitudes, iso_codes = [[] for _ in range(5)]
 
         for airport in airports_csv:
-            if (len(airport['iata_code']) != 3) or (airport['iata_code'] in iata_codes):
+            if (airport['iata_code'] not in supported_airports_codes) or (airport['iata_code'] in iata_codes):
                 continue
 
             if airport['iso_country'] not in iso_codes:
@@ -32,18 +32,17 @@ class GeoService:
         countries = enumerate(iso_codes, 1)
         return [*airports], [*countries]
 
-    @classmethod
-    def get_distances(cls, airports: list) -> list:
+    def get_distances(self, airports: list) -> list:
         distances = []
         for airport_a, airport_b in product(airports, airports):
             coordinates_a = airport_a[3:5]
             coordinates_b = airport_b[3:5]
-            distance = cls.calculate_distance(coordinates_a, coordinates_b)
+            distance = self.calculate_distance(coordinates_a, coordinates_b)
             distances.append((airport_a[0], airport_b[0], distance))
         return distances
 
-    @classmethod
-    def calculate_distance(cls, coordinates_a: tuple, coordinates_b: tuple) -> float:
+    @staticmethod
+    def calculate_distance(coordinates_a: tuple, coordinates_b: tuple) -> float:
         degree_in_kms = 111.12
 
         latitude_a, longitude_a = coordinates_a
