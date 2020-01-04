@@ -1,4 +1,4 @@
-from tools.geolocation import GeoService
+from tools.geo import GeoService
 from copy import deepcopy
 
 

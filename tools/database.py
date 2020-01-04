@@ -41,7 +41,7 @@ class Flight(BaseModel):
 
     class Meta:
         indexes = (
-            (('source', 'destination', 'date'), True),
+            (('source', 'destination', 'date'), False),
             (('source',), False),
             (('cost',), False),
             (('date',), False),
