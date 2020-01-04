@@ -12,6 +12,7 @@ class WizzAir:
         self.session.get(f'https://{wizzair_domain}/#/')
 
         self.api_url = f'https://be.{self.wizzair_domain}/{self.api_version}/Api'
+        self.airport_codes, self.connections = self.get_airport_codes_and_connections()
 
     @property
     def default_headers(self):
@@ -34,7 +35,7 @@ class WizzAir:
             'referer': f'https://{self.wizzair_domain}/',
             'sec-fetch-mode': 'cors',
             'sec-fetch-site': 'same-site',
-            'x-requestverificationtoken': self.session.cookies.get_airport('RequestVerificationToken'),
+            'x-requestverificationtoken': self.session.cookies.get('RequestVerificationToken'),
         }
 
     @property
@@ -46,32 +47,26 @@ class WizzAir:
             raise ValueError('Incorrect format of /buildnumber response')
         return api_version
 
-    @property
-    def airport_codes(self) -> list:
+    def get_airport_codes_and_connections(self) -> tuple:
         response = self.session.get(f'{self.api_url}/asset/map?languageCode=en-gb').json()
-        return [x['iata'] for x in response['cities']]
+        airport_codes, connections = [[] for _ in range(2)]
 
-    def get_flight_dates(self, src, dst, start, stop):
-        response = self.session.get(
-            f'{self.api_url}/search/flightDates',
-            params={
-                'departureStation': src,
-                'arrivalStation': dst,
-                'from': start,
-                'to': stop,
-            },
-        ).json()
+        for city in response['cities']:
+            city_name = city['iata']
+            city_connections = [c['iata'] for c in city['connections']]
+            length = len(city_connections)
+            connections.extend([*zip([city_name] * length, city_connections)])
+            airport_codes.append(city_name)
 
-        flight_dates = [fd[:10] for fd in response['flightDates']]
-        return flight_dates
+        return airport_codes, connections
 
-    def get_timetable(self, src, dst, start, stop):
+    def get_flight_data(self, source: str, destination: str, start: str, stop: str) -> list:
         response = self.session.post(
             url=f'{self.api_url}/search/timetable',
             json={
                 "flightList": [
-                    {"departureStation": src, "arrivalStation": dst, "from": start, "to": stop},
-                    {"departureStation": dst, "arrivalStation": src, "from": start, "to": stop},
+                    {"departureStation": source, "arrivalStation": destination, "from": start, "to": stop},
+                    {"departureStation": destination, "arrivalStation": source, "from": start, "to": stop},
                 ],
                 "priceType": "regular",
                 "adultCount": 1,
@@ -81,24 +76,22 @@ class WizzAir:
             headers=self.post_headers,
         ).json()
 
-        flights = {src: {}, dst: {}}
-        self.insert_flights(response, flights)
+        pair = sorted((source, destination))
+        return self.fetch_flight_data(response, pair)
 
-        return flights
-
-    def insert_flights(self, response, flights):
+    def fetch_flight_data(self, response: dict, airport_pair: list) -> list:
+        flight_data = []
         for flight in response['outboundFlights'] + response['returnFlights']:
-            date = flight['departureDate'][:10]
-            src = flight['departureStation']
-            dst = flight['arrivalStation']
-            price = flight['price']['amount']
-            currency = flight['price']['currencyCode']
-
-            eur_price = self.es.get_eur_price(price, currency)
-
-            if src not in flights:
+            if sorted((flight['departureStation'], flight['arrivalStation'])) != airport_pair:
                 break
 
-            flights[src][date] = flights[src].get_airport(date, []) + [(dst, eur_price)]
+            date = flight['departureDate'][:10]
+            price = flight['price']['amount']
+            currency = flight['price']['currencyCode']
+            eur_price = self.es.get_eur_price(price, currency)
+            if eur_price == 0.0:
+                continue
 
-        return flights
+            flight_data.append((date, eur_price))
+
+        return flight_data
