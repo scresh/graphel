@@ -10,7 +10,7 @@ class GeoService:
         response = requests.get(airports_url).text.split("\n")
         airports_csv = DictReader(response, delimiter=',', quotechar='"')
         self.airports = self.get_airports(supported_airports_codes, airports_csv)
-        self.distances = self.get_distances(self.airports)
+        self.distances = self.get_distances()
 
     @staticmethod
     def get_airports(supported_airports_codes: list, airports_csv: DictReader) -> list:
@@ -28,11 +28,11 @@ class GeoService:
 
         return [(k, v["country"], v["latitude"], v["longitude"]) for k, v in airports.items()]
 
-    def get_distances(self, airports: list) -> list:
+    def get_distances(self) -> list:
         distances = []
-        for airport_a, airport_b in product(airports, airports):
-            coordinates_a = airport_a[3:5]
-            coordinates_b = airport_b[3:5]
+        for airport_a, airport_b in product(self.airports, self.airports):
+            coordinates_a = airport_a[2:4]
+            coordinates_b = airport_b[2:4]
             distance = self.calculate_distance(coordinates_a, coordinates_b)
             distances.append((airport_a[0], airport_b[0], distance))
         return distances
