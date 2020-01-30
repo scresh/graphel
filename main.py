@@ -1,4 +1,4 @@
-from time import time
+from datetime import timedelta, datetime
 
 import peewee
 
@@ -6,10 +6,14 @@ from airlines.wizzair import WizzAir
 from tools.geo import GeoService
 from tools.database import (
     create_database,
-    Country,
     Airport,
     Distance,
-    Flight)
+    Flight,
+    Chain,
+    get_matching_flights,
+    get_recent_airport_and_date,
+    get_new_chain
+)
 
 
 class Graphel:
@@ -28,7 +32,6 @@ class Graphel:
         self.airlines = (
             WizzAir(),
         )
-
         self.geo_service = GeoService(self.get_airport_codes())
         self.fill_database()
 
@@ -40,21 +43,14 @@ class Graphel:
         return [*set(airport_codes)]
 
     def fill_database(self):
-        self.fill_countries()
         self.fill_airports()
         self.fill_distances()
         self.fill_flights()
 
-    def fill_countries(self):
-        Country.insert_many(
-            rows=self.geo_service.countries,
-            fields=[Country.id, Country.code]
-        ).execute()
-
     def fill_airports(self):
         Airport.insert_many(
             rows=self.geo_service.airports,
-            fields=[Airport.id, Airport.code, Airport.country, Airport.latitude, Airport.longitude],
+            fields=[Airport.code, Airport.country, Airport.latitude, Airport.longitude],
         ).execute()
 
     def fill_distances(self):
@@ -85,9 +81,34 @@ class Graphel:
                     fields=[Flight.source, Flight.destination, Flight.date, Flight.cost]
                 ).execute()
 
+    def run(self, chain, min_range, max_range, total_cost, recent_airport_and_date=None):
+        if recent_airport_and_date:
+            recent_airport, recent_date = recent_airport_and_date
+        else:
+            recent_airport, recent_date = get_recent_airport_and_date(chain.id)
+
+        lower_range = get_date_str_after_delta(recent_date, min_range)
+        upper_range = get_date_str_after_delta(recent_date, max_range)
+        amount_left = total_cost - chain.cost
+
+        for flight in get_matching_flights(recent_airport, amount_left, lower_range, upper_range):
+            new_chain = get_new_chain(chain, flight)
+            self.run(new_chain, min_range, max_range, total_cost)
+
+    def find_flights(self, start_airport="WAW", min_range=2, max_range=4, total_cost=120):
+        genesis_chain = Chain.get(Chain.id == Chain.insert(cost=0).execute())
+        start_date = get_date_str_after_delta(self.date_start, -min_range)
+
+        self.run(genesis_chain, min_range, max_range, total_cost, recent_airport_and_date=(start_airport, start_date))
+
 
 def main():
     graphel = Graphel()
+    graphel.find_flights()
+
+
+def get_date_str_after_delta(date_str, delta, date_format="%Y-%m-%d"):
+    return (datetime.strptime(date_str, date_format) + timedelta(days=delta)).strftime(date_format)
 
 
 if __name__ == "__main__":
