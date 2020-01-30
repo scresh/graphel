@@ -33,9 +33,12 @@ class Graphel:
         return [*set(airport_codes)]
 
     def fill_database(self):
-        db.insert_airports(self.geo_service.airports)
-        db.insert_distances(self.geo_service.distances)
-        db.insert_flights(self.get_flights())
+        try:
+            db.insert_airports(self.geo_service.airports)
+            db.insert_distances(self.geo_service.distances)
+            db.insert_flights(self.get_flights())
+        except peewee.IntegrityError:
+            print("Database file already exist")
 
     def fill_distances(self):
         db.Distance.insert_many(
@@ -102,18 +105,23 @@ class Graphel:
         for chain in db.get_matching_chains(initial_airport, is_one_way):
             chain_flights = db.ChainFlight.select().where(db.ChainFlight.chain_id == chain.id).order_by(
                 db.ChainFlight.id)
-            visited_airports = [initial_airport]
+            chain_str = f"({initial_airport})"
             visited_countries = {db.get_airport_country(initial_airport)}
 
             for chain_flight in chain_flights:
-                destination = chain_flight.flight.destination.code
-                visited_airports.append(destination)
+                flight = chain_flight.flight
+                destination = flight.destination.code
+                date = flight.date
+                cost = flight.cost
+
+                chain_str += f" -[{date}|{cost:>8}]-> ({destination})"
+
                 visited_countries.add(db.get_airport_country(destination))
 
-            chains_scores.append((len(set(visited_airports)), " -> ".join(visited_airports)))
+            chains_scores.append((len(visited_countries), f"{chain.cost:>6}", chain_str))
 
         best_results = sorted(chains_scores, key=lambda x: x[0], reverse=True)[:limit]
-        print(tabulate(best_results, headers=["Count", "Route"]))
+        print(tabulate(best_results, headers=["Countries", "Cost", "Route"]))
 
     @staticmethod
     def get_shifted_date_str(date_str, delta, date_format="%Y-%m-%d"):
