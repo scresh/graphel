@@ -1,3 +1,5 @@
+from time import time
+
 import peewee
 
 from airlines.wizzair import WizzAir
@@ -13,50 +15,59 @@ from tools.database import (
 class Graphel:
     def __init__(self, db_filename):
         create_database(db_filename)
-        self.airlines = (WizzAir(),)
-        self.fill_database(
-            GeoService(
-                self.get_airport_codes(self.airlines)
-            )
+        self.airlines = (
+            WizzAir(),
         )
 
-    @staticmethod
-    def get_airport_codes(airlines) -> list:
+        self.geo_service = GeoService(self.get_airport_codes())
+        self.fill_database()
+
+    def get_airport_codes(self) -> list:
         airport_codes = []
-        for airline in airlines:
+        for airline in self.airlines:
             airport_codes.extend(airline.airport_codes)
 
         return [*set(airport_codes)]
 
-    def fill_database(self, geo_service: GeoService):
-        self.fill_countries(geo_service)
-        self.fill_airports(geo_service)
-        self.fill_distances(geo_service)
+    def fill_database(self):
+        self.fill_countries()
+        self.fill_airports()
+        self.fill_distances()
         self.fill_flights()
 
-    @staticmethod
-    def fill_countries(geo_service):
-        Country.insert_many(rows=geo_service.countries, fields=[Country.id, Country.code]).execute()
+    def fill_countries(self):
+        Country.insert_many(
+            rows=self.geo_service.countries,
+            fields=[Country.id, Country.code]
+        ).execute()
 
-    @staticmethod
-    def fill_airports(geo_service):
+    def fill_airports(self):
         Airport.insert_many(
-            rows=geo_service.airports,
+            rows=self.geo_service.airports,
             fields=[Airport.id, Airport.code, Airport.country, Airport.latitude, Airport.longitude],
         ).execute()
 
-    @staticmethod
-    def fill_distances(geo_service):
+    def fill_distances(self):
         Distance.insert_many(
-            rows=geo_service.distances,
+            rows=self.geo_service.distances,
             fields=[Distance.source, Distance.destination, Distance.distance],
         ).execute()
 
     def fill_flights(self):
+        periods = []
+        count = 0
+        tic = time()
+
         for airline in self.airlines:
             for source, destination in airline.connections:
                 flight_data = airline.get_flight_data(source, destination, "2020-02-01", "2020-03-01")
-
+                tac = time()
+                periods.append(tac-tic)
+                print(f'{tac-tic}')
+                tic = tac
+                count += 1
+                print(sum(periods) / count)
+                print('-' * 100)
                 if not flight_data:
                     continue
                 length = len(flight_data)
