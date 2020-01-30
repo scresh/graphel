@@ -1,6 +1,7 @@
 from datetime import timedelta, datetime
 
 import peewee
+from tabulate import tabulate
 
 from airlines.wizzair import WizzAir
 from tools.geo import GeoService
@@ -12,8 +13,8 @@ from tools.database import (
     Chain,
     get_matching_flights,
     get_recent_airport_and_date,
-    get_new_chain
-)
+    get_new_chain,
+    ChainFlight)
 
 
 class Graphel:
@@ -95,16 +96,39 @@ class Graphel:
             new_chain = get_new_chain(chain, flight)
             self.run(new_chain, min_range, max_range, total_cost)
 
-    def find_flights(self, start_airport="WAW", min_range=2, max_range=4, total_cost=120):
+    def insert_chains(self, start_airport="WAW", min_range=2, max_range=4, total_cost=120):
         genesis_chain = Chain.get(Chain.id == Chain.insert(cost=0).execute())
         start_date = get_date_str_after_delta(self.date_start, -min_range)
 
         self.run(genesis_chain, min_range, max_range, total_cost, recent_airport_and_date=(start_airport, start_date))
 
+    @classmethod
+    def show_best_results(cls, limit=10):
+        create_database('airports.db')
+
+        chain_n_score = []
+
+        for chain in Chain.select():
+            chain_flights = ChainFlight.select().where(ChainFlight.chain_id == chain.id).order_by(ChainFlight.id)
+            visited_airports = set()
+            airports_pairs = []
+
+            for chain_flight in chain_flights:
+                source = chain_flight.flight.source.code
+                destination = chain_flight.flight.destination.code
+                [visited_airports.add(x) for x in (source, destination)]
+                airports_pairs.append(f"({source} -> {destination})")
+
+            chain_n_score.append((len(visited_airports), "-".join(airports_pairs)))
+
+        best_results = sorted(chain_n_score, key=lambda x: x[0], reverse=True)[:limit]
+        print(tabulate(best_results, headers=["Count", "Route"]))
+
 
 def main():
     graphel = Graphel()
-    graphel.find_flights()
+    graphel.insert_chains()
+    Graphel.show_best_results()
 
 
 def get_date_str_after_delta(date_str, delta, date_format="%Y-%m-%d"):
