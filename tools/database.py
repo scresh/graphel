@@ -24,7 +24,7 @@ class BaseModel(Model):
 
 class Airport(BaseModel):
     code = FixedCharField(unique=True, max_length=3)
-    country = FixedCharField(unique=True, max_length=2)
+    country = FixedCharField(max_length=2)
     latitude = DecimalField(max_digits=3, decimal_places=2)
     longitude = DecimalField(max_digits=3, decimal_places=2)
 
