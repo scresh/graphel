@@ -13,7 +13,17 @@ from tools.database import (
 
 
 class Graphel:
-    def __init__(self, db_filename):
+    def __init__(
+            self,
+            db_filename="airports.db",
+            date_range=("2020-02-01", "2020-03-01"),
+            selected_airports=(
+                    "WAW", "ATH", "VIE", "BRU", "SOF", "LCA", "PGR", "ORY", "SXF",
+            ),
+    ):
+        self.date_start, self.date_stop = date_range
+        self.selected_airports = selected_airports
+
         create_database(db_filename)
         self.airlines = (
             WizzAir(),
@@ -54,20 +64,11 @@ class Graphel:
         ).execute()
 
     def fill_flights(self):
-        periods = []
-        count = 0
-        tic = time()
-
         for airline in self.airlines:
             for source, destination in airline.connections:
-                flight_data = airline.get_flight_data(source, destination, "2020-02-01", "2020-03-01")
-                tac = time()
-                periods.append(tac-tic)
-                print(f'{tac-tic}')
-                tic = tac
-                count += 1
-                print(sum(periods) / count)
-                print('-' * 100)
+                if not all([x in self.selected_airports for x in (source, destination)]):
+                    continue
+                flight_data = airline.get_flight_data(source, destination, self.date_start, self.date_stop)
                 if not flight_data:
                     continue
                 length = len(flight_data)
@@ -86,8 +87,8 @@ class Graphel:
 
 
 def main():
-    graphel = Graphel(':memory:')
+    graphel = Graphel()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
