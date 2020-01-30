@@ -9,28 +9,24 @@ class GeoService:
     def __init__(self, supported_airports_codes, airports_url=AIRPORTS_URL):
         response = requests.get(airports_url).text.split("\n")
         airports_csv = DictReader(response, delimiter=',', quotechar='"')
-        self.airports, self.countries = self.get_airports_and_countries(supported_airports_codes, airports_csv)
+        self.airports = self.get_airports(supported_airports_codes, airports_csv)
         self.distances = self.get_distances(self.airports)
 
     @staticmethod
-    def get_airports_and_countries(supported_airports_codes: list, airports_csv: DictReader) -> tuple:
-        iata_codes, country_ids, latitudes, longitudes, iso_codes = [[] for _ in range(5)]
+    def get_airports(supported_airports_codes: list, airports_csv: DictReader) -> list:
+        airports = {}
 
         for airport in airports_csv:
-            if (airport['iata_code'] not in supported_airports_codes) or (airport['iata_code'] in iata_codes):
+            if (airport['iata_code'] not in supported_airports_codes) or (airport['iata_code'] in airports):
                 continue
 
-            if airport['iso_country'] not in iso_codes:
-                iso_codes.append(airport['iso_country'])
+            airports[airport["iata_code"]] = {
+                "country": airport["iso_country"],
+                "latitude": round(float(airport['latitude_deg']), 2),
+                "longitude": round(float(airport['longitude_deg']), 2),
+            }
 
-            iata_codes.append(airport['iata_code'])
-            country_ids.append(iso_codes.index(airport['iso_country']) + 1)
-            latitudes.append(round(float(airport['latitude_deg']), 2))
-            longitudes.append(round(float(airport['longitude_deg']), 2))
-
-        airports = zip(range(1, len(iata_codes) + 1), iata_codes, country_ids, latitudes, longitudes)
-        countries = enumerate(iso_codes, 1)
-        return [*airports], [*countries]
+        return [(k, v["country"], v["latitude"], v["longitude"]) for k, v in airports.items()]
 
     def get_distances(self, airports: list) -> list:
         distances = []
